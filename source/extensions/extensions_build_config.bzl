@@ -198,6 +198,7 @@ EXTENSIONS = {
     "envoy.filters.http.stateful_session":              "//source/extensions/filters/http/stateful_session:config",
     "envoy.filters.http.header_mutation":               "//source/extensions/filters/http/header_mutation:config",
     "envoy.filters.http.reverse_conn":                  "//source/extensions/filters/http/reverse_conn:config",
+    "envoy.filters.http.reverse_conn_notifier":         "//source/extensions/filters/http/reverse_conn_notifier:config",
 
     #
     # Listener filters

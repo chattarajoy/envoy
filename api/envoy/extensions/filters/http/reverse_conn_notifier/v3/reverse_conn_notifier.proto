@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.http.reverse_conn_notifier.v3;
+
+import "udpa/annotations/status.proto";
+import "udpa/annotations/versioning.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.filters.http.reverse_conn_notifier.v3";
+option java_outer_classname = "ReverseConnNotifierProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/reverse_conn_notifier/v3;reverseconnnotifierv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+option (udpa.annotations.file_status).work_in_progress = true;
+
+// [#protodoc-title: Reverse connection notifier]
+// This configuration controls the reverse connection notifier filter.
+// [#extension: envoy.filters.http.reverse_conn_notifier]
+message ReverseConnNotifier {
+  option (udpa.annotations.versioning).previous_message_type = "";
+
+  // The name of the cluster that hosts the sidecar to which notifications will be sent.
+  string cluster = 1 [(validate.rules).string = {min_len: 1}];
+
+  // The request path on the sidecar HTTP server. If omitted defaults to "/notify".
+  string path = 2;
+
+  // Optional custom HTTP header used to detect reverse connection requests.
+  // Defaults to "x-reverse-connect" if empty.
+  string detection_header = 3;
+}

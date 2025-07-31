@@ -28,6 +28,8 @@ static_resources:
                 route_config:
                   name: rev_conn_api_route
                   virtual_hosts: []
+                upgrade_configs:
+                  - upgrade_type: websocket
                 http_filters:
                   - name: envoy.filters.http.reverse_conn
                     typed_config:
@@ -56,10 +58,23 @@ static_resources:
                       domains:
                         - "*"
                       routes:
+                        # Route gRPC requests to gRPC service (fixed path matching)
+                        - match:
+                            prefix: '/greeter.Greeter'
+                          route:
+                            cluster: on-prem-grpc-service
+                        # Route HTTP requests to HTTP service
                         - match:
                             prefix: '/on_prem_service'
                           route:
                             cluster: on-prem-service
+                        # Route WebSocket requests to WebSocket service
+                        - match:
+                            prefix: '/ws'
+                          route:
+                            cluster: on-prem-websocket-service
+                upgrade_configs:
+                  - upgrade_type: websocket
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
@@ -95,10 +110,23 @@ static_resources:
                       domains:
                         - "*"
                       routes:
+                        # Route gRPC requests to gRPC service (fixed path matching)
+                        - match:
+                            prefix: '/greeter.Greeter'
+                          route:
+                            cluster: on-prem-grpc-service
+                        # Route HTTP requests to HTTP service
                         - match:
                             prefix: '/on_prem_service'
                           route:
                             cluster: on-prem-service
+                        # Route WebSocket requests to WebSocket service
+                        - match:
+                            prefix: '/ws'
+                          route:
+                            cluster: on-prem-websocket-service
+                upgrade_configs:
+                  - upgrade_type: websocket
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
@@ -116,7 +144,7 @@ static_resources:
           - endpoint:
               address:
                 socket_address:
-                  address: cloud-envoy # Container name of cloud-envoy in docker-compose
+                  address: 127.0.0.1 # Container name of cloud-envoy in docker-compose
                   port_value: 9000   # Port where cloud-envoy's rev_conn_api_listener listens
 
     # Backend HTTP service behind onprem which
@@ -134,13 +162,49 @@ static_resources:
                     address: on-prem-service
                     port_value: 80
 
+    # Backend WebSocket service behind onprem which
+    # we will access via reverse connections
+    - name: on-prem-websocket-service
+      type: STRICT_DNS
+      connect_timeout: 30s
+      load_assignment:
+        cluster_name: on-prem-websocket-service
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: on-prem-websocket-service
+                    port_value: 8080
+
+    # Backend gRPC service behind onprem which
+    # we will access via reverse connections
+    - name: on-prem-grpc-service
+      type: STRICT_DNS
+      connect_timeout: 30s
+      # Enable HTTP/2 for gRPC support
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: on-prem-grpc-service
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: on-prem-grpc-service
+                    port_value: 50051
+
 admin:
   access_log_path: "/dev/stdout"
   address:
     socket_address:
       protocol: TCP
       address: 0.0.0.0
-      port_value: 8888
+      port_value: 8889
 
 layered_runtime:
   layers:
