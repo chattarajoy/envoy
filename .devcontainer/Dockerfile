@@ -16,11 +16,6 @@ RUN apt-get -y update \
   && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
   && chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Install buildifier
-RUN curl -L https://github.com/bazelbuild/buildtools/releases/latest/download/buildifier-linux-amd64 \
-    -o /usr/local/bin/buildifier && \
-    chmod +x /usr/local/bin/buildifier
-
 ENV DEBIAN_FRONTEND=
 ENV PATH=/opt/llvm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
