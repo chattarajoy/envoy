@@ -186,6 +186,7 @@ void AsyncStreamImpl::sendLocalReply(Code code, absl::string_view body,
                                  content_type);
           },
           [this, &details](ResponseHeaderMapPtr&& headers, bool end_stream) -> void {
+            ENVOY_LOG(debug, "ENCODING HEADERS");
             encodeHeaders(std::move(headers), end_stream, details);
           },
           [this](Buffer::Instance& data, bool end_stream) -> void {

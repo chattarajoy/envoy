@@ -64,17 +64,17 @@ func (cb *Callbacks) OnStreamOpen(ctx context.Context, id int64, typ string) err
 	return nil
 }
 
-func (cb *Callbacks) OnStreamClosed(id int64) {
+func (cb *Callbacks) OnStreamClosed(id int64, node *core.Node) {
 	log.Printf("🔗 OnStreamClosed %d closed", id)
 }
 
-func (cb *Callbacks) OnDeltaStreamOpen(ctx context.Context, id int64, typ string, node *core.Node) error {
-	log.Printf("🔗 OnDeltaStreamOpen %d open for %s (node: %v)", id, typ, node)
+func (cb *Callbacks) OnDeltaStreamOpen(ctx context.Context, id int64, typ string) error {
+	log.Printf("🔗 OnDeltaStreamOpen %d open for %s", id, typ)
 	return nil
 }
 
 func (cb *Callbacks) OnDeltaStreamClosed(id int64, node *core.Node) {
-	log.Printf("🔗 OnDeltaStreamClosed %d closed (node: %v)", id, node)
+	log.Printf("🔗 OnDeltaStreamClosed %d closed", id)
 }
 
 func (cb *Callbacks) OnStreamRequest(id int64, req *discoverygrpc.DiscoveryRequest) error {
@@ -99,6 +99,14 @@ func (cb *Callbacks) OnStreamResponse(ctx context.Context, id int64, req *discov
 		id, resp.GetTypeUrl(), resp.GetVersionInfo(), resp.GetNonce(), len(resp.GetResources()))
 }
 
+// OnStreamDeltaResponse implements server.Callbacks.
+func (cb *Callbacks) OnStreamDeltaResponse(id int64, req *discoverygrpc.DeltaDiscoveryRequest, resp *discoverygrpc.DeltaDiscoveryResponse) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	log.Printf("📤 OnStreamDeltaResponse[%d]: %s (version=%s, nonce=%s, resources=%d)",
+		id, req.GetTypeUrl(), resp.GetSystemVersionInfo(), resp.GetNonce(), len(resp.GetResources()))
+}
+
 func (cb *Callbacks) OnFetchRequest(ctx context.Context, req *discoverygrpc.DiscoveryRequest) error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -112,7 +120,7 @@ func (cb *Callbacks) OnFetchResponse(req *discoverygrpc.DiscoveryRequest, resp *
 }
 
 // Additional delta methods that might be required
-func (cb *Callbacks) OnDeltaStreamRequest(id int64, req *discoverygrpc.DeltaDiscoveryRequest) error {
+func (cb *Callbacks) OnStreamDeltaRequest(id int64, req *discoverygrpc.DeltaDiscoveryRequest) error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.requests++
@@ -287,10 +295,10 @@ func main() {
 	cache := cache.NewSnapshotCache(false, cache.IDHash{}, nil)
 
 	// Create callbacks - use nil for simplicity, server will use default callbacks
-	// callbacks := &Callbacks{}
+	callbacks := &Callbacks{}
 
 	// Create the xDS server with nil callbacks (will use defaults)
-	srv := server.NewServer(context.Background(), cache, nil)
+	srv := server.NewServer(context.Background(), cache, callbacks)
 
 	// Wrap with bidirectional support
 	bidirectionalServer := &BidirectionalXDSServer{

@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -y update \
   && apt-get -y install --no-install-recommends libpython2.7 net-tools psmisc vim python3-pip wget 2>&1 \
   # Install Go (use latest 1.22 to avoid toolchain issues)
-  && GO_VERSION=1.22.8 \
+  && GO_VERSION=1.23.11 \
   && wget -q "https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
   && tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz" \
   && rm "go${GO_VERSION}.linux-amd64.tar.gz" \

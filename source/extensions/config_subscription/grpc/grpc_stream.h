@@ -1,14 +1,11 @@
 #pragma once
 
-#include <functional>
 #include <memory>
 
-#include "envoy/common/random_generator.h"
 #include "envoy/config/grpc_mux.h"
 #include "envoy/grpc/async_client.h"
 #include "envoy/grpc/status.h"
 
-#include "source/common/common/backoff_strategy.h"
 #include "source/common/common/token_bucket_impl.h"
 #include "source/common/config/utility.h"
 #include "source/common/grpc/typed_async_client.h"
@@ -75,12 +72,17 @@ public:
       return;
     }
     control_plane_stats_.connected_state_.set(static_cast<uint64_t>(connected_state_val_));
+    ENVOY_LOG(debug, "STREAM HAS BEEN ESTABLISHED");
     callbacks_->onStreamEstablished();
   }
 
   bool grpcStreamAvailable() const override { return stream_ != nullptr; }
 
-  void sendMessage(const RequestProto& request) override { stream_->sendMessage(request, false); }
+  void sendMessage(const RequestProto& request) override { 
+    ENVOY_LOG(debug, "Sending gRPC request to {} for {}", async_client_.destination(),
+              service_method_.DebugString());
+    stream_->sendMessage(request, false); 
+  }
 
   // Grpc::AsyncStreamCallbacks
   void onCreateInitialMetadata(Http::RequestHeaderMap& metadata) override {

@@ -72,4 +72,4 @@ echo ""
 echo "--- Envoy Logs ---"
 
 # Start Envoy with bidirectional xDS support
-exec "$ENVOY_BIN" -c "$CONFIG_FILE" --log-level info
+exec "$ENVOY_BIN" -c "$CONFIG_FILE" --log-level debug
