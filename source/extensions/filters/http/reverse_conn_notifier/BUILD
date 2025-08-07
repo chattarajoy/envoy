@@ -36,7 +36,6 @@ envoy_cc_extension(
         "//source/common/http:codes_lib",
         "//source/common/http:headers_lib",
         "//source/common/http:utility_lib",
-        # "@nlohmann_json//:nlohmann_json",
         "@envoy_api//envoy/extensions/filters/http/reverse_conn_notifier/v3:pkg_cc_proto",
     ],
 )

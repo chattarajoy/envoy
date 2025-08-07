@@ -143,10 +143,23 @@ Http::FilterDataStatus ReverseConnFilter::acceptReverseConnection() {
 
   decoder_callbacks_->sendLocalReply(
       Http::Code::OK, response_body,
-      [&response_body](Http::ResponseHeaderMap& headers) {
+      [&response_body, &node_uuid, &tenant_uuid, &cluster_uuid](Http::ResponseHeaderMap& headers) {
         headers.setContentType("application/octet-stream");
         headers.setContentLength(response_body.length());
         headers.setConnection("close");
+        headers.setCopy(Http::LowerCaseString("x-reverse-connection-accepted"), absl::string_view("true"));
+        if (!tenant_uuid.empty()) {
+          headers.setCopy(Http::LowerCaseString("x-reverse-connection-tenant-uuid"),
+                                  absl::string_view(tenant_uuid));
+        }
+        if (!cluster_uuid.empty()) {
+          headers.setCopy(Http::LowerCaseString("x-reverse-connection-cluster-uuid"),
+                                  absl::string_view(cluster_uuid));
+        }
+        if (!node_uuid.empty()) {
+          headers.setCopy(Http::LowerCaseString("x-reverse-connection-node-uuid"),
+                                  absl::string_view(node_uuid));
+        }
       },
       absl::nullopt, "");
 

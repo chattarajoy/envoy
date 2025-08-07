@@ -43,7 +43,7 @@ using ReverseConnNotifierFilterConfigSharedPtr = std::shared_ptr<ReverseConnNoti
  * issues asynchronous HTTP calls to a side-car service when the stream is
  * accepted and again when it terminates.
  */
-class ReverseConnNotifierFilter : public Http::StreamDecoderFilter,
+class ReverseConnNotifierFilter : public Http::StreamEncoderFilter,
                                   public Http::AsyncClient::Callbacks,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:
@@ -51,10 +51,25 @@ public:
                             Upstream::ClusterManager& cm);
 
   // Http::StreamDecoderFilter
-  Http::FilterHeadersStatus decodeHeaders(Http::RequestHeaderMap& headers, bool end_stream) override;
-  Http::FilterDataStatus decodeData(Buffer::Instance&, bool) override { return Http::FilterDataStatus::Continue; }
-  Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap&) override { return Http::FilterTrailersStatus::Continue; }
-  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override { callbacks_ = &callbacks; }
+  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap& headers, bool end_stream) override ;
+  Http::Filter1xxHeadersStatus encode1xxHeaders(Http::ResponseHeaderMap&) override {
+    // Currently, we do not handle 1xx headers in this filter.
+    return Http::Filter1xxHeadersStatus::Continue;
+  }
+  Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override {
+    return Http::FilterDataStatus::Continue;
+  };
+  Http::FilterTrailersStatus encodeTrailers(Http::ResponseTrailerMap&) override {
+        return Http::FilterTrailersStatus::Continue;
+  };
+  Http::FilterMetadataStatus encodeMetadata(Http::MetadataMap&) override {
+    return Http::FilterMetadataStatus::Continue;
+  }
+  
+  void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks& callbacks) override {
+    callbacks_ = &callbacks;
+  };
+
   void onDestroy() override;
 
   // Http::AsyncClient::Callbacks (we ignore responses)
@@ -64,11 +79,11 @@ public:
 
 private:
   bool isReverseConnection(const Http::RequestHeaderMap& headers) const;
-  void notify(absl::string_view event, const Http::RequestHeaderMap& headers);
+  void notify(absl::string_view event, const Http::ResponseHeaderMap& headers);
 
   ReverseConnNotifierFilterConfigSharedPtr config_;
   Upstream::ClusterManager& cm_;
-  Http::StreamDecoderFilterCallbacks* callbacks_{}; // not owned
+  Http::StreamEncoderFilterCallbacks* callbacks_{}; // not owned
   bool interested_{false};
 };
 

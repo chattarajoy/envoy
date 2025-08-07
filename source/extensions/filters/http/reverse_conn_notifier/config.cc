@@ -6,6 +6,8 @@
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/filters/http/reverse_conn_notifier/filter.h"
 
+#include "envoy/registry/registry.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
@@ -17,7 +19,7 @@ Http::FilterFactoryCb ReverseConnNotifierFilterConfigFactory::createFilterFactor
   auto shared_config = std::make_shared<ReverseConnNotifierFilterConfig>(proto_config);
 
   return [shared_config, &context](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-    callbacks.addStreamDecoderFilter(
+    callbacks.addStreamEncoderFilter(
         std::make_shared<ReverseConnNotifierFilter>(shared_config, context.serverFactoryContext().clusterManager()));
   };
 }
