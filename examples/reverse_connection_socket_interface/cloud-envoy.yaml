@@ -23,11 +23,22 @@ static_resources:
                     domains:
                       - "*"
                     routes:
+                      # Route all requests to reverse connection cluster
+                      # Path-based routing will happen on the on-prem side
                       - match:
-                          prefix: '/on_prem_service'
+                          prefix: '/'
                         route:
                           cluster: reverse_connection_cluster
+                upgrade_configs:
+                  - upgrade_type: connect
                 http_filters:
+                  # Reverse connection notifier for connection lifecycle events
+                  - name: envoy.filters.http.reverse_conn_notifier
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.reverse_conn_notifier.v3.ReverseConnNotifier
+                      cluster: notification_service
+                      path: "/notify"
+                      detection_header: "x-reverse-connect"
                   # Filter that services reverse conn APIs
                   - name: envoy.filters.http.reverse_conn
                     typed_config:
@@ -55,10 +66,14 @@ static_resources:
                       domains:
                         - "*"
                       routes:
+                        # Route all requests to reverse connection cluster
+                        # Path-based routing will happen on the on-prem side
                         - match:
-                            prefix: "/on_prem_service"
+                            prefix: '/'
                           route:
                             cluster: reverse_connection_cluster
+                upgrade_configs:
+                  - upgrade_type: connect
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
@@ -83,6 +98,20 @@ static_resources:
           explicit_http_config:
             # Right the moment, reverse connections are supported over HTTP/2 only
             http2_protocol_options: {}
+
+    # Notification service cluster for reverse connection lifecycle events
+    - name: notification_service
+      type: STATIC
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: notification_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 8080
 admin:
   access_log_path: "/dev/stdout"
   address:

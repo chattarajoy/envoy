@@ -104,6 +104,8 @@ public:
   const std::string OAuth = "envoy.filters.http.oauth2";
   // KillRequest filter
   const std::string KillRequest = "envoy.filters.http.kill_request";
+  // Reverse Connection Notifier filter
+  const std::string ReverseConnNotifier = "envoy.filters.http.reverse_conn_notifier";
   // External Processing filter
   const std::string ExternalProcessing = "envoy.filters.http.ext_proc";
   // Set metadata filter
