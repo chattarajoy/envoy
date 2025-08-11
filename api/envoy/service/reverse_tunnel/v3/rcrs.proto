@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 package envoy.service.reverse_tunnel;
-
 import "envoy/service/reverse_tunnel/v3/reverse_tunnel_handshake.proto";
 
 import "google/protobuf/any.proto";
@@ -16,15 +15,40 @@ option java_multiple_files = true;
 option go_package = "github.com/envoyproxy/go-control-plane/envoy/service/reverse_tunnel/v3;reverse_tunnelv3";
 option (udpa.annotations.file_status).package_version_status = ACTIVE;
 
+// [#protodoc-title: Reverse Connection Reporting Service (RCRS)]
+
 // ReverseConnectionReportingService (RCRS) is used by Envoy to report reverse connection changes
-// to a management server. This is similar to the LoadReportingService (LRS) but for reverse tunnels.
+// to a management server.
+// Envoy will initiate a bi-directional stream with a management server.
+// Upon connecting, the management client sends a
+// :ref:`StreamReverseConnectionsRequest <envoy_v3_api_msg_service.reverse_tunnel.v3.StreamReverseConnectionsRequest>`
+// to the management server, which will then respond with the configuration for reporting reverse connections as a
+// :ref:`StreamReverseConnectionsResponse <envoy_v3_api_msg_service.reverse_tunnel.v3.StreamReverseConnectionsResponse>`.
+//
+// Envoy will then start sending
+// :ref:`StreamReverseConnectionsRequest <envoy_v3_api_msg_service.reverse_tunnel.v3.StreamReverseConnectionsRequest>`.
+// This is done periodically based on the
+// :ref:`report interval <envoy_v3_api_field_service.reverse_tunnel.v3.StreamReverseConnectionsResponse.report_interval>`.
+// For details, take a look at the :ref:`Reverse Connection Reporting Service sandbox example <install_sandboxes_reverse_connection_reporting_service>`.    
+
 service ReverseConnectionsReportingService {
   // StreamReverseConnections is a bi-directional stream for reporting reverse connection changes.
+  //
+  // The request and response flow are reversed when compared to the traditional request-response model.
+  // Envoy sends a StreamReverseConnectionsRequest to the management server, which can then respond
+  // with a StreamReverseConnectionsResponse with the details on how to handle the reported connections.
+  // The next request from Envoy will include the added and removed connections and a nonce to
+  // unique identify the updates sent.
+  //
+  // The management server must send a StreamReverseConnectionsResponse to acknowledge or
+  // NACK the request, providing feedback on the reported connections that will help Envoy 
+  // clear the relevant events from its internal state.
   rpc StreamReverseConnections(stream StreamReverseConnectionsRequest)
     returns (stream StreamReverseConnectionsResponse) {}
 }
 
 // Request message for StreamReverseConnections.
+// [#next-free-field: 7]
 message StreamReverseConnectionsRequest {
   // Node identifier for the Envoy instance.
   envoy.config.core.v3.Node node = 1;  
@@ -38,10 +62,9 @@ message StreamReverseConnectionsRequest {
   // Optionally, additional metadata.
   google.protobuf.Struct metadata = 4;  
 
-  // Indicates if the Envoy is in draining state.
-  // If true, it means that the Envoy is shutting down and no new connections
-  // should be established. Existing connections may still be reported.
-  // This is useful for graceful shutdowns.
+  // Indicates if the Envoy is in draining state (graceful shutdown).
+  // As soon as the Envoy is reporting it is in draining state, 
+  // no new requests should be sent to Envoy to go via any of the reverse connections.
   // If false, it means that the Envoy is fully operational and can accept new connections.
   // This field is optional and defaults to false if not set.
   bool listener_draining = 5;
@@ -52,8 +75,19 @@ message StreamReverseConnectionsRequest {
 }
 
 // Response message for StreamReverseConnections.
+// [#next-free-field: 4]
 message StreamReverseConnectionsResponse {
+  // Node identifier for the Envoy instance.
+  // This is used to specify the exact cluster and listener addresses to monitor for reverse connections.
+  // The same node indentifier is returned as part of the ``StreamReverseConnectionsRequest``.
+  envoy.config.core.v3.Node node = 1; 
+
   // Interval at which Envoy should report changes.
+  // There is a special case when the report interval is set to 0, which means that
+  // Envoy should report changes immediately and not wait for the next interval.
+  // In such a scenario, Envoy will send all the reverse connections that are currently active.
+  // This is useful for scenarios where the management server needs to get the entire current state
+  // of reverse connections without waiting for the next report interval.
   google.protobuf.Duration report_interval = 1;
 
   // When the ``StreamReverseConnectionsResponse`` is a ACK or NACK message in response
@@ -69,6 +103,7 @@ message StreamReverseConnectionsResponse {
 }
 
 // Information about a single reverse connection.
+// [#next-free-field: 3]
 message ReverseConnectionInfo {
   // Connection identifier for the reverse connection.
   TunnelInitiatorIdentity connection_identifier = 1;  
