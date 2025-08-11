@@ -19,55 +19,59 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // ReverseConnectionReportingService (RCRS) is used by Envoy to report reverse connection changes
 // to a management server. This is similar to the LoadReportingService (LRS) but for reverse tunnels.
 service ReverseConnectionsReportingService {
-    // StreamReverseConnections is a bi-directional stream for reporting reverse connection changes.
-    rpc StreamReverseConnections(stream StreamReverseConnectionsRequest)
-            returns (stream StreamReverseConnectionsResponse) {}
+  // StreamReverseConnections is a bi-directional stream for reporting reverse connection changes.
+  rpc StreamReverseConnections(stream StreamReverseConnectionsRequest)
+    returns (stream StreamReverseConnectionsResponse) {}
 }
 
 // Request message for StreamReverseConnections.
 message StreamReverseConnectionsRequest {
-    // Node identifier for the Envoy instance.
-    envoy.config.core.v3.Node node = 1;
+  // Node identifier for the Envoy instance.
+  envoy.config.core.v3.Node node = 1;  
+ 
+  // List of reverse connections that were added since the last report.
+  repeated ReverseConnectionInfo added_connections = 2;  
+ 
+  // List of reverse connections that were removed since the last report.
+  repeated ReverseConnectionInfo removed_connections = 3;  
+ 
+  // Optionally, additional metadata.
+  google.protobuf.Struct metadata = 4;  
 
-    // List of reverse connections that were added since the last report.
-    repeated ReverseConnectionInfo added_connections = 2;
+  // Indicates if the Envoy is in draining state.
+  // If true, it means that the Envoy is shutting down and no new connections
+  // should be established. Existing connections may still be reported.
+  // This is useful for graceful shutdowns.
+  // If false, it means that the Envoy is fully operational and can accept new connections.
+  // This field is optional and defaults to false if not set.
+  bool listener_draining = 5;
 
-    // List of reverse connections that were removed since the last report.
-    repeated ReverseConnectionInfo removed_connections = 3;
-
-    // Optionally, additional metadata.
-    google.protobuf.Struct metadata = 4;
-
-        // Indicates if the Envoy is in draining state.
-        bool draining = 5;
-    }
+  // The nonce provides a way for ``StreamReverseConnectionsRequest`` to uniquely
+  // reference a ``StreamReverseConnectionsResponse`` when (N)ACKing. The nonce is required.
+  string nonce = 6;
+}
 
 // Response message for StreamReverseConnections.
 message StreamReverseConnectionsResponse {
-    // Interval at which Envoy should report changes.
-    google.protobuf.Duration report_interval = 1;
+  // Interval at which Envoy should report changes.
+  google.protobuf.Duration report_interval = 1;
 
-    // Optionally, error details.
-    google.rpc.Status error = 2;
+  // When the ``StreamReverseConnectionsResponse`` is a ACK or NACK message in response
+  // to a previous ``StreamReverseConnectionsRequest``, the ``request_nonce`` must be the
+  // nonce in the ``StreamReverseConnectionsRequest``.
+  // Otherwise (unlike in ``StreamReverseConnectionsRequest``) ``request_nonce`` must be omitted.
+  string request_nonce = 2;
 
-    // Acknowledgement of the previous request message.
-    Ack ack = 3;
-}
-
-// Acknowledgement message for previous StreamReverseConnectionsRequest.
-message Ack {
-    // The ID or sequence number of the acknowledged request.
-    string request_id = 1;
-
-    // Optionally, status of the acknowledgement.
-    google.rpc.Status status = 2;
+  // This is populated when the previous :ref:`StreamReverseConnectionsRequest <envoy_v3_api_msg_service.reverse_tunnel.v3.StreamReverseConnectionsRequest>`
+  // failed to update configuration. The ``message`` field in ``error_details``
+  // provides the Envoy internal exception related to the failure.
+  google.rpc.Status error_detail = 3;
 }
 
 // Information about a single reverse connection.
 message ReverseConnectionInfo {
-    // Connection identifier (could be IP, port, or unique ID).
-    TunnelInitiatorIdentity connection_info = 1;
-
-    // Timestamp of when the connection was added or removed.
-    google.protobuf.Timestamp timestamp = 2;
+  // Connection identifier for the reverse connection.
+  TunnelInitiatorIdentity connection_identifier = 1;  
+  // Timestamp of when the connection was added or removed.
+  google.protobuf.Timestamp timestamp = 2;
 }
