@@ -54,7 +54,7 @@ message StreamReverseConnectionsRequest {
   envoy.config.core.v3.Node node = 1;  
  
   // List of reverse connections that were added since the last report.
-  repeated ReverseConnectionInfo added_connections = 2;  
+  repeated ReverseConnectionInfo connections_info = 2;  
  
   // List of reverse connections that were removed since the last report.
   repeated ReverseConnectionInfo removed_connections = 3;  
@@ -88,18 +88,18 @@ message StreamReverseConnectionsResponse {
   // In such a scenario, Envoy will send all the reverse connections that are currently active.
   // This is useful for scenarios where the management server needs to get the entire current state
   // of reverse connections without waiting for the next report interval.
-  google.protobuf.Duration report_interval = 1;
+  google.protobuf.Duration report_interval = 2;
 
   // When the ``StreamReverseConnectionsResponse`` is a ACK or NACK message in response
   // to a previous ``StreamReverseConnectionsRequest``, the ``request_nonce`` must be the
   // nonce in the ``StreamReverseConnectionsRequest``.
   // Otherwise (unlike in ``StreamReverseConnectionsRequest``) ``request_nonce`` must be omitted.
-  string request_nonce = 2;
+  string request_nonce = 3;
 
   // This is populated when the previous :ref:`StreamReverseConnectionsRequest <envoy_v3_api_msg_service.reverse_tunnel.v3.StreamReverseConnectionsRequest>`
   // failed to update configuration. The ``message`` field in ``error_details``
   // provides the Envoy internal exception related to the failure.
-  google.rpc.Status error_detail = 3;
+  google.rpc.Status error_detail = 4;
 }
 
 // Information about a single reverse connection.
