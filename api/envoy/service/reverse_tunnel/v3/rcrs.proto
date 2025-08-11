@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package envoy.service.reverse_tunnel;
+
+import "envoy/service/reverse_tunnel/v3/reverse_tunnel_handshake.proto";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/rpc/status.proto";
+
+option java_package = "io.envoyproxy.envoy.service.reverse_tunnel.v3";
+option java_outer_classname = "ReverseConnectionsReportingServiceProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/service/reverse_tunnel/v3;reverse_tunnelv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// ReverseConnectionReportingService (RCRS) is used by Envoy to report reverse connection changes
+// to a management server. This is similar to the LoadReportingService (LRS) but for reverse tunnels.
+service ReverseConnectionsReportingService {
+    // StreamReverseConnections is a bi-directional stream for reporting reverse connection changes.
+    rpc StreamReverseConnections(stream StreamReverseConnectionsRequest)
+            returns (stream StreamReverseConnectionsResponse) {}
+}
+
+// Request message for StreamReverseConnections.
+message StreamReverseConnectionsRequest {
+    // Node identifier for the Envoy instance.
+    envoy.config.core.v3.Node node = 1;
+
+    // List of reverse connections that were added since the last report.
+    repeated ReverseConnectionInfo added_connections = 2;
+
+    // List of reverse connections that were removed since the last report.
+    repeated ReverseConnectionInfo removed_connections = 3;
+
+    // Optionally, additional metadata.
+    google.protobuf.Struct metadata = 4;
+
+        // Indicates if the Envoy is in draining state.
+        bool draining = 5;
+    }
+
+// Response message for StreamReverseConnections.
+message StreamReverseConnectionsResponse {
+    // Interval at which Envoy should report changes.
+    google.protobuf.Duration report_interval = 1;
+
+    // Optionally, error details.
+    google.rpc.Status error = 2;
+
+    // Acknowledgement of the previous request message.
+    Ack ack = 3;
+}
+
+// Acknowledgement message for previous StreamReverseConnectionsRequest.
+message Ack {
+    // The ID or sequence number of the acknowledged request.
+    string request_id = 1;
+
+    // Optionally, status of the acknowledgement.
+    google.rpc.Status status = 2;
+}
+
+// Information about a single reverse connection.
+message ReverseConnectionInfo {
+    // Connection identifier (could be IP, port, or unique ID).
+    TunnelInitiatorIdentity connection_info = 1;
+
+    // Timestamp of when the connection was added or removed.
+    google.protobuf.Timestamp timestamp = 2;
+}
