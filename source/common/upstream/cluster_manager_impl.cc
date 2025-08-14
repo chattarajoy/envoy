@@ -511,6 +511,33 @@ absl::Status ClusterManagerImpl::initializeSecondaryClusters(
     load_stats_reporter_ = std::make_unique<LoadStatsReporter>(
         local_info_, *this, *stats_.rootScope(), std::move(*client_or_error), dispatcher_);
   }
+
+  // Initialize Reverse Connection Reporting Service if configured
+  if (cm_config.has_reverse_connection_reporting_config()) {
+    const auto& rcrs_config = cm_config.reverse_connection_reporting_config();
+    
+    absl::Status status = Config::Utility::checkTransportVersion(rcrs_config);
+    RETURN_IF_NOT_OK(status);
+    auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
+        *async_client_manager_, rcrs_config, *stats_.rootScope(), false, 0, false);
+    RETURN_IF_NOT_OK_REF(factory_or_error.status());
+    absl::StatusOr<Grpc::RawAsyncClientPtr> client_or_error =
+        factory_or_error.value()->createUncachedRawAsyncClient();
+    RETURN_IF_NOT_OK_REF(client_or_error.status());
+
+    // Find the reverse connection cluster to attach the reporter to
+    auto reverse_connection_cluster = findReverseConnectionCluster();
+    if (reverse_connection_cluster != nullptr) {
+      reverse_connection_reporter_ = 
+          std::make_unique<Extensions::ReverseConnection::ReverseConnectionReporter>(
+              local_info_, *reverse_connection_cluster, *stats_.rootScope(), 
+              std::move(*client_or_error), dispatcher_);
+      ENVOY_LOG(info, "Reverse Connection Reporting Service initialized successfully");
+    } else {
+      ENVOY_LOG(warn, "No reverse connection cluster found, RCRS reporter not initialized");
+    }
+  }
+  
   return absl::OkStatus();
 }
 
@@ -2280,6 +2307,27 @@ ProdClusterManagerFactory::createCds(const envoy::config::core::v3::ConfigSource
   return CdsApiImpl::create(cds_config, cds_resources_locator, cm, *stats_.rootScope(),
                             context_.messageValidationContext().dynamicValidationVisitor(),
                             context_);
+}
+
+Extensions::ReverseConnection::RevConCluster* ClusterManagerImpl::findReverseConnectionCluster() {
+  // Iterate through all clusters to find a reverse connection cluster
+  ClusterInfoMaps all_clusters = clusters();
+  
+  for (const auto& cluster_pair : all_clusters.active_clusters_) {
+    const auto& cluster = cluster_pair.second.get();
+    
+    // Try to cast to RevConCluster
+    auto* rev_con_cluster = dynamic_cast<Extensions::ReverseConnection::RevConCluster*>(
+        const_cast<Cluster*>(&cluster));
+    
+    if (rev_con_cluster != nullptr) {
+      ENVOY_LOG(debug, "Found reverse connection cluster: {}", cluster_pair.first);
+      return rev_con_cluster;
+    }
+  }
+  
+  ENVOY_LOG(debug, "No reverse connection cluster found");
+  return nullptr;
 }
 
 } // namespace Upstream

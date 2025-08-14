@@ -85,6 +85,7 @@ envoy_cc_library(
         ":host_utility_lib",
         ":load_balancer_context_base_lib",
         ":load_stats_reporter_lib",
+        "//source/extensions/clusters/reverse_connection:reverse_connection_lib",
         "//envoy/api:api_interface",
         "//envoy/config:xds_resources_delegate_interface",
         "//envoy/event:dispatcher_interface",
