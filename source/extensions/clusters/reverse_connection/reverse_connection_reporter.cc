@@ -6,7 +6,6 @@
 #include "envoy/service/reverse_tunnel/v3/reverse_tunnel_handshake.pb.h"
 #include "envoy/stats/scope.h"
 
-#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 namespace Envoy {
