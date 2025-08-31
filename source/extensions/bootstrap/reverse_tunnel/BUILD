@@ -98,6 +98,8 @@ envoy_cc_extension(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":reverse_connections_reporter_lib",
+        ":reverse_connection_utility_lib",
         "//envoy/common:random_generator_interface",
         "//envoy/network:address_interface",
         "//envoy/network:io_handle_interface",
@@ -113,8 +115,8 @@ envoy_cc_extension(
         "//source/common/network:address_lib",
         "//source/common/network:default_socket_interface_lib",
         "//source/common/protobuf",
-        ":reverse_connection_utility_lib",
         "@envoy_api//envoy/extensions/bootstrap/reverse_connection_socket_interface/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/reverse_tunnel/v3:pkg_cc_proto",
     ],
     alwayslink = 1,
 )

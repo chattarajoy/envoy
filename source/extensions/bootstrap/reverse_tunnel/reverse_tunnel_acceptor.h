@@ -22,6 +22,8 @@
 #include "source/common/network/io_socket_handle_impl.h"
 #include "source/common/network/socket_interface.h"
 
+#include "envoy/service/reverse_tunnel/v3/rcrs.pb.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace Bootstrap {
@@ -412,6 +414,17 @@ public:
   std::string getNodeID(const std::string& key);
 
 private:
+  /**
+   * Notify the reporter of a connection event (if reporter is available).
+   * Posts to main thread if called from worker thread.
+   */
+  void notifyReporter(const std::string& node_id, const std::string& cluster_id, bool added);
+
+  /**
+   * Create ReverseConnectionInfo message for reporting.
+   */
+  envoy::service::reverse_tunnel::v3::ReverseConnectionInfo
+  createConnectionInfo(const std::string& node_id, const std::string& cluster_id);
   // Thread local dispatcher instance.
   Event::Dispatcher& dispatcher_;
   Random::RandomGeneratorPtr random_generator_;

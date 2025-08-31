@@ -6,6 +6,8 @@
 #include <string>
 #include <thread>
 
+#include "source/extensions/bootstrap/reverse_tunnel/reverse_connections_reporter.h"
+
 #include "source/common/api/os_sys_calls_impl.h"
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
@@ -476,6 +478,9 @@ void UpstreamSocketManager::addConnectionSocket(const std::string& node_id,
               node_id, cluster_id);
   }
 
+  // Notify reporter of connection added
+  notifyReporter(node_id, cluster_id, true /* added */);
+
   // onPingResponse() expects a ping reply on the socket.
   fd_to_event_map_[fd] = dispatcher_.createFileEvent(
       fd,
@@ -615,6 +620,9 @@ void UpstreamSocketManager::markSocketDead(const int fd) {
                 node_id, cluster_id);
     }
 
+    // Notify reporter of connection removed
+    notifyReporter(node_id, cluster_id, false /* added */);
+
     return;
   }
 
@@ -639,6 +647,9 @@ void UpstreamSocketManager::markSocketDead(const int fd) {
                   "UpstreamSocketManager: decremented stats registry for node '{}' cluster '{}'",
                   node_id, cluster_id);
       }
+
+      // Notify reporter of connection removed
+      notifyReporter(node_id, cluster_id, false /* added */);
       break;
     }
   }
@@ -834,6 +845,47 @@ UpstreamSocketManager::~UpstreamSocketManager() {
     ping_timer_->disableTimer();
     ping_timer_.reset();
   }
+}
+
+void UpstreamSocketManager::notifyReporter(const std::string& node_id, const std::string& cluster_id, bool added) {
+  auto extension = getUpstreamExtension();
+  if (!extension || !extension->getReporter()) {
+    return; // No reporter available
+  }
+
+  auto* reporter = extension->getReporter();
+  auto connection_info = createConnectionInfo(node_id, cluster_id);
+
+  // Post to main thread since reporter runs on main thread but we might be on worker thread
+  // Use the current dispatcher; if we're on a worker thread, the post will cross threads
+  dispatcher_.post([reporter, connection_info, added]() {
+    if (added) {
+      reporter->enqueueAdded(connection_info);
+    } else {
+      reporter->enqueueRemoved(connection_info);
+    }
+  });
+}
+
+envoy::service::reverse_tunnel::v3::ReverseConnectionInfo
+UpstreamSocketManager::createConnectionInfo(const std::string& node_id, const std::string& cluster_id) {
+  envoy::service::reverse_tunnel::v3::ReverseConnectionInfo info;
+  
+  auto* identifier = info.mutable_connection_identifier();
+  identifier->set_tenant_id("default"); // TODO: Make configurable
+  identifier->set_cluster_id(cluster_id);
+  identifier->set_node_id(node_id);
+
+  // Set current timestamp
+  auto now = std::chrono::system_clock::now();
+  auto timestamp = info.mutable_timestamp();
+  auto duration = now.time_since_epoch();
+  auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+  auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);
+  timestamp->set_seconds(seconds.count());
+  timestamp->set_nanos(static_cast<int32_t>(nanos.count()));
+
+  return info;
 }
 
 REGISTER_FACTORY(ReverseTunnelAcceptor, Server::Configuration::BootstrapExtensionFactory);
