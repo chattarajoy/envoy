@@ -137,3 +137,24 @@ envoy_cc_extension(
     ],
     alwayslink = 1,
 )
+
+envoy_cc_extension(
+    name = "reverse_connections_reporter_extension_lib",
+    srcs = ["reverse_connections_reporter_extension.cc"],
+    hdrs = ["reverse_connections_reporter_extension.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":reverse_connections_reporter_lib",
+        ":reverse_tunnel_acceptor_lib",
+        "//envoy/local_info:local_info_interface",
+        "//envoy/server:bootstrap_extension_config_interface",
+        "//envoy/stats:stats_interface",
+        "//envoy/upstream:cluster_manager_interface",
+        "//source/common/common:logger_lib",
+        "//source/common/grpc:async_client_manager_lib",
+        "//source/common/network:socket_interface_lib",
+        "//source/common/protobuf:utility_lib",
+        "@envoy_api//envoy/extensions/bootstrap/reverse_tunnel/v3:pkg_cc_proto",
+    ],
+    alwayslink = 1,
+)
