@@ -183,6 +183,25 @@ Upstream::HostSelectionResponse RevConCluster::checkAndCreateHost(const std::str
   return {host};
 }
 
+void RevConCluster::registerHostForNode(const std::string& node_id) {
+  ENVOY_LOG(debug, "RCRS FIX: Proactive host registration requested for node_id: {}", node_id);
+  
+  // Check if host already exists
+  if (host_mapping_.hasHost(node_id)) {
+    ENVOY_LOG(debug, "RCRS FIX: Host already exists for node_id: {}, skipping registration", node_id);
+    return;
+  }
+  
+  // Use checkAndCreateHost to create the host proactively
+  auto host_response = checkAndCreateHost(node_id);
+  
+  if (host_response.host != nullptr) {
+    ENVOY_LOG(info, "RCRS FIX: Successfully registered host proactively for node_id: {}", node_id);
+  } else {
+    ENVOY_LOG(warn, "RCRS FIX: Failed to register host proactively for node_id: {}", node_id);
+  }
+}
+
 void RevConCluster::cleanup() {
   // Use the HostMapping interface to clean up unused hosts
   host_mapping_.removeUnusedHosts();
@@ -315,7 +334,8 @@ bool RevConCluster::HostMapping::empty() const {
 
 void RevConCluster::HostMapping::insertHost(const std::string& node_id, Upstream::HostSharedPtr host) {
   absl::WriterMutexLock lock(&mutex_);
-  
+
+  ENVOY_LOG(debug, "HostMapping insertHost: {}", node_id);
   // Check if host already exists 
   auto it = host_map_.find(node_id);
   if (it != host_map_.end()) {
@@ -380,12 +400,14 @@ void RevConCluster::HostMapping::removeUnusedHosts() {
 
 bool RevConCluster::HostMapping::hasLogEntries() const {
   absl::ReaderMutexLock lock(&mutex_);
+  ENVOY_LOG(debug, "HostMapping hasLogEntries: {}", write_ahead_log_.size());
   return !write_ahead_log_.empty();
 }
 
 absl::optional<RevConCluster::HostMapping::WriteAheadLogEntry> 
 RevConCluster::HostMapping::popLogEntry() {
   absl::WriterMutexLock lock(&mutex_);
+  ENVOY_LOG(debug, "HostMapping popLogEntry: {}", write_ahead_log_.size());
   
   if (write_ahead_log_.empty()) {
     return absl::nullopt;

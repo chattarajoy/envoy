@@ -287,6 +287,14 @@ public:
                                       bool increment);
 
   /**
+   * Notify reverse connection clusters about newly established connections.
+   * This triggers proactive host registration for RCRS reporting.
+   * @param node_id the node identifier for the connection.
+   * @param cluster_id the cluster identifier for the connection.
+   */
+  void notifyReverseConnectionEstablished(const std::string& node_id, const std::string& cluster_id);
+
+  /**
    * Get per-worker connection stats for debugging.
    * @return map of node/cluster -> connection count for the current worker thread.
    */

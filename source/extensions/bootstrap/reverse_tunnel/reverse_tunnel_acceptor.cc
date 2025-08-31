@@ -15,6 +15,7 @@
 #include "source/common/network/socket_interface.h"
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/bootstrap/reverse_tunnel/reverse_connection_utility.h"
+#include "source/extensions/clusters/reverse_connection/reverse_connection.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -257,6 +258,35 @@ absl::flat_hash_map<std::string, uint64_t> ReverseTunnelAcceptorExtension::getCr
   return stats_map;
 }
 
+void ReverseTunnelAcceptorExtension::notifyReverseConnectionEstablished(const std::string& node_id, const std::string& cluster_id) {
+  ENVOY_LOG(debug, "RCRS FIX: Notifying reverse connection clusters about new connection - node: {}, cluster: {}", node_id, cluster_id);
+  
+  // Access the cluster manager to find reverse connection clusters
+  auto& cluster_manager = context_.clusterManager();
+  
+  // Iterate through all clusters to find reverse connection clusters
+  auto cluster_info_maps = cluster_manager.clusters();
+  
+  for (const auto& cluster_pair : cluster_info_maps.active_clusters_) {
+    const auto& cluster = cluster_pair.second.get();
+    
+    // Try to cast to RevConCluster
+    auto* rev_con_cluster = dynamic_cast<Extensions::ReverseConnection::RevConCluster*>(
+        const_cast<Upstream::Cluster*>(&cluster));
+    
+    if (rev_con_cluster != nullptr) {
+      ENVOY_LOG(debug, "RCRS FIX: Found reverse connection cluster '{}', triggering proactive host registration for node '{}'", 
+                cluster_pair.first, node_id);
+      
+      // Call the new public method to register the host proactively
+      rev_con_cluster->registerHostForNode(node_id);
+      
+      ENVOY_LOG(info, "RCRS FIX: Completed proactive host registration for node '{}' in cluster '{}'", 
+                node_id, cluster_pair.first);
+    }
+  }
+}
+
 void ReverseTunnelAcceptorExtension::updateConnectionStats(const std::string& node_id,
                                                            const std::string& cluster_id,
                                                            bool increment) {
@@ -474,6 +504,9 @@ void UpstreamSocketManager::addConnectionSocket(const std::string& node_id,
     extension->updateConnectionStats(node_id, cluster_id, true /* increment */);
     ENVOY_LOG(debug, "UpstreamSocketManager: updated stats registry for node '{}' cluster '{}'",
               node_id, cluster_id);
+    
+    // RCRS FIX: Notify reverse connection clusters about new connection
+    extension->notifyReverseConnectionEstablished(node_id, cluster_id);
   }
 
   // onPingResponse() expects a ping reply on the socket.

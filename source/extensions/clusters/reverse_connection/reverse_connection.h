@@ -285,6 +285,9 @@ public:
   // Public access to host mapping for ReverseConnectionReporter
   HostMapping host_mapping_;
 
+  // Public method for proactive host registration (for RCRS support)
+  void registerHostForNode(const std::string& node_id);
+
 private:
   Event::Dispatcher& dispatcher_;
   std::chrono::milliseconds cleanup_interval_;
