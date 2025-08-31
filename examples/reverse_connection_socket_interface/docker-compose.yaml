@@ -50,6 +50,14 @@ services:
     networks:
       - envoy-network
 
+  # Reverse Connections Reporting Service (RCRS) - Mock implementation
+  rcrs-service:
+    image: nginxdemos/hello:plain-text
+    ports:
+      - "9090:80"
+    networks:
+      - envoy-network
+
 networks:
   envoy-network:
     driver: bridge

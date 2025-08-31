@@ -83,6 +83,22 @@ static_resources:
           explicit_http_config:
             # Right the moment, reverse connections are supported over HTTP/2 only
             http2_protocol_options: {}
+
+    # Cluster for the Reverse Connections Reporting Service (RCRS)
+    - name: rcrs_cluster
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: rcrs_cluster
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: rcrs-service
+                  port_value: 9090
+      http2_protocol_options: {}
 admin:
   access_log_path: "/dev/stdout"
   address:
@@ -94,9 +110,17 @@ layered_runtime:
   - name: layer
     static_layer:
       re2.max_program_size.error_level: 1000
-# Enable reverse connection bootstrap extension
+# Enable reverse connection bootstrap extensions
 bootstrap_extensions:
 - name: envoy.bootstrap.reverse_connection.upstream_reverse_connection_socket_interface
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.bootstrap.reverse_connection_socket_interface.v3.UpstreamReverseConnectionSocketInterface
     stat_prefix: "upstream_reverse_connection"
+
+- name: envoy.bootstrap.reverse_connection.reverse_connections_reporter
+  typed_config:
+    "@type": type.googleapis.com/envoy.extensions.bootstrap.reverse_tunnel.v3.ReverseConnectionsReporterConfig
+    grpc_service:
+      envoy_grpc:
+        cluster_name: rcrs_cluster
+    initial_report_interval: 30s
