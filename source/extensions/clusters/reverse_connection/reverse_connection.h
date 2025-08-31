@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <queue>
 #include <string>
 #include <vector>
 
@@ -229,69 +228,11 @@ private:
   // No pre-initialize work needs to be completed by REVERSE CONNECTION cluster.
   void startPreInit() override { onPreInitComplete(); }
 
-public:
-  // Public class for host mapping with write-ahead logging
-  class HostMapping {
-  public:
-    // Enum for write-ahead log operation types
-    enum class OperationType { INSERT, UPDATE, REMOVE };
-    
-    // Structure representing a write-ahead log entry
-    struct WriteAheadLogEntry {
-      OperationType operation;
-      std::string node_id;
-      Upstream::HostSharedPtr host; // null for REMOVE operations
-      std::chrono::steady_clock::time_point timestamp;
-      
-      WriteAheadLogEntry(OperationType op, const std::string& id, 
-                        Upstream::HostSharedPtr h = nullptr)
-          : operation(op), node_id(id), host(std::move(h)), 
-            timestamp(std::chrono::steady_clock::now()) {}
-    };
-    
-    HostMapping() = default;
-    
-    // Standard read methods
-    Upstream::HostSharedPtr getHost(const std::string& node_id) const;
-    bool hasHost(const std::string& node_id) const;
-    size_t size() const;
-    bool empty() const;
-    
-    // Standard write methods
-    void insertHost(const std::string& node_id, Upstream::HostSharedPtr host);
-    void updateHost(const std::string& node_id, Upstream::HostSharedPtr host);
-    bool removeHost(const std::string& node_id);
-    
-    // Iterator support for cleanup operations
-    std::vector<std::string> getUnusedHosts() const;
-    void removeUnusedHosts();
-    
-    // Write-ahead log operations
-    bool hasLogEntries() const;
-    absl::optional<WriteAheadLogEntry> popLogEntry();
-    void clearLog();
-    size_t getLogSize() const;
-    
-  private:
-    mutable absl::Mutex mutex_;
-    absl::flat_hash_map<std::string, Upstream::HostSharedPtr> host_map_ ABSL_GUARDED_BY(mutex_);
-    std::queue<WriteAheadLogEntry> write_ahead_log_ ABSL_GUARDED_BY(mutex_);
-    
-    // Helper method to add log entry
-    void addLogEntry(OperationType operation, const std::string& node_id, 
-                    Upstream::HostSharedPtr host = nullptr) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  };
-
-  // Public access to host mapping for ReverseConnectionReporter
-  HostMapping host_mapping_;
-
-  // Public method for proactive host registration (for RCRS support)
-  void registerHostForNode(const std::string& node_id);
-
-private:
   Event::Dispatcher& dispatcher_;
   std::chrono::milliseconds cleanup_interval_;
   Event::TimerPtr cleanup_timer_;
+  absl::Mutex host_map_lock_;
+  absl::flat_hash_map<std::string, Upstream::HostSharedPtr> host_map_;
   std::vector<absl::optional<Http::LowerCaseString>> http_header_names_;
   // Host header suffix expected by envoy when acting as a L4 proxy.
   std::string proxy_host_suffix_;

@@ -13,10 +13,13 @@ envoy_cc_extension(
     srcs = [
         "reverse_connection.cc",
         "reverse_connection_reporter.cc",
+        "reverse_connection_tracker.cc",
     ],
     hdrs = [
         "reverse_connection.h", 
         "reverse_connection_reporter.h",
+        "reverse_connection_tracker.h",
+        "connection_tracker_bridge.h",
     ],
     visibility = ["//visibility:public"],
     deps = [

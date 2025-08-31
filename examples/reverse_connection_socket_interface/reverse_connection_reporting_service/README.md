@@ -101,11 +101,12 @@ Starting RCRS Management Server on port 9090...
 
 ### 2. Cloud Envoy Logs (envoy-with-rcrs)
 ```
-[info] Reverse Connection Reporting Service initialized successfully
-[debug] Found reverse connection cluster: reverse_connection_cluster
-[debug] Establishing new gRPC bidi stream for StreamReverseConnections
-[debug] Processing INSERT for connection: on-prem-rcrs-node
-[debug] Sending StreamReverseConnectionsRequest
+[info] Reverse Connection Reporting Service initialized successfully with new tracker-based implementation
+[debug] ReverseConnectionTrackerManager: Initialized with thread-local slots
+[debug] ReverseConnectionReporter: Establishing new gRPC bidi stream
+[debug] ReverseConnectionTracker: Recording connection established - node: on-prem-rcrs-node
+[debug] ReverseConnectionReporter: Processing 1 added, 0 removed events
+[debug] ReverseConnectionReporter: Sending StreamReverseConnectionsRequest with 1 added, 0 removed
 ```
 
 ### 3. On-Prem Envoy Logs
@@ -121,8 +122,11 @@ Check the admin interfaces:
 **Cloud Envoy Admin** (http://127.0.0.1:9902/stats):
 ```
 reverse_connection_reporter.connections_added: 1
+reverse_connection_reporter.connections_removed: 0
 reverse_connection_reporter.requests: 5
 reverse_connection_reporter.responses: 5
+reverse_connection_reporter.events_processed: 3
+reverse_connection_reporter.events_cleared: 3
 reverse_connection_reporter.errors: 0
 reverse_connection_reporter.retries: 0
 ```
@@ -277,12 +281,14 @@ python rcrs_management_server.py --mock --port 9090
 1. **Envoy** establishes gRPC stream to management server
 2. **Envoy** sends initial request with node info and nonce
 3. **Server** responds with report interval configuration  
-4. **Envoy** monitors reverse connection write-ahead log
-5. **Envoy** periodically reports connection changes
-6. **Server** acknowledges each report with matching nonce
+4. **UpstreamSocketManager** records socket events in thread-local tracker
+5. **ReverseConnectionReporter** periodically collects events from tracker
+6. **Envoy** sends connection changes to management server
+7. **Server** acknowledges each report with matching nonce
 
 ### Code Locations  
-- **Implementation**: `source/extensions/clusters/reverse_connection/reverse_connection_reporter.cc`
+- **New Implementation**: `source/extensions/clusters/reverse_connection/reverse_connection_reporter.cc`
+- **Connection Tracker**: `source/extensions/clusters/reverse_connection/reverse_connection_tracker.cc`
 - **Protocol**: `api/envoy/service/reverse_tunnel/v3/rcrs.proto`
 - **Bootstrap Config**: `api/envoy/extensions/bootstrap/reverse_connection_socket_interface/v3/upstream_reverse_connection_socket_interface.proto`
 

@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <list>
-#include <queue>
 #include <string>
 #include <vector>
 
@@ -147,13 +146,19 @@ Upstream::HostSelectionResponse RevConCluster::checkAndCreateHost(const std::str
   std::string node_id = socket_manager->getNodeID(host_id);
   ENVOY_LOG(debug, "RevConCluster: Resolved key '{}' to node_id '{}'", host_id, node_id);
 
-  // Check if node_id is already present in host_mapping_ or not. This ensures,
+  host_map_lock_.ReaderLock();
+  // Check if node_id is already present in host_map_ or not. This ensures,
   // that envoy reuses a conn_pool_container for an endpoint.
-  Upstream::HostSharedPtr existing_host = host_mapping_.getHost(node_id);
-  if (existing_host != nullptr) {
+  auto host_itr = host_map_.find(node_id);
+  if (host_itr != host_map_.end()) {
     ENVOY_LOG(debug, "Found an existing host for {}.", node_id);
-    return {existing_host};
+    Upstream::HostSharedPtr host = host_itr->second;
+    host_map_lock_.ReaderUnlock();
+    return {host};
   }
+  host_map_lock_.ReaderUnlock();
+
+  absl::WriterMutexLock wlock(&host_map_lock_);
 
   // Create a custom address that uses the UpstreamReverseSocketInterface
   Network::Address::InstanceConstSharedPtr host_address(
@@ -178,33 +183,24 @@ Upstream::HostSelectionResponse RevConCluster::checkAndCreateHost(const std::str
   ENVOY_LOG(trace, "Created a HostImpl {} for {} that will use UpstreamReverseSocketInterface.",
             *host, node_id);
 
-  // Insert the host using the HostMapping interface
-  host_mapping_.insertHost(node_id, host);
+  host_map_[node_id] = host;
   return {host};
 }
 
-void RevConCluster::registerHostForNode(const std::string& node_id) {
-  ENVOY_LOG(debug, "RCRS FIX: Proactive host registration requested for node_id: {}", node_id);
-  
-  // Check if host already exists
-  if (host_mapping_.hasHost(node_id)) {
-    ENVOY_LOG(debug, "RCRS FIX: Host already exists for node_id: {}, skipping registration", node_id);
-    return;
-  }
-  
-  // Use checkAndCreateHost to create the host proactively
-  auto host_response = checkAndCreateHost(node_id);
-  
-  if (host_response.host != nullptr) {
-    ENVOY_LOG(info, "RCRS FIX: Successfully registered host proactively for node_id: {}", node_id);
-  } else {
-    ENVOY_LOG(warn, "RCRS FIX: Failed to register host proactively for node_id: {}", node_id);
-  }
-}
-
 void RevConCluster::cleanup() {
-  // Use the HostMapping interface to clean up unused hosts
-  host_mapping_.removeUnusedHosts();
+  absl::WriterMutexLock wlock(&host_map_lock_);
+
+  for (auto iter = host_map_.begin(); iter != host_map_.end();) {
+    // Check if the host handle is acquired by any connection pool container or not. If not
+    // clean those host to prevent memory leakage.
+    const auto& host = iter->second;
+    if (!host->used()) {
+      ENVOY_LOG(debug, "Removing stale host: {}", *host);
+      host_map_.erase(iter++);
+    } else {
+      ++iter;
+    }
+  }
 
   // Reschedule the cleanup after cleanup_interval_ duration.
   cleanup_timer_->enableTimer(cleanup_interval_);
@@ -308,132 +304,6 @@ RevConClusterFactory::createClusterWithConfig(
   RETURN_IF_NOT_OK(creation_status);
   auto lb = std::make_unique<RevConCluster::ThreadAwareLoadBalancer>(new_cluster);
   return std::make_pair(new_cluster, std::move(lb));
-}
-
-// HostMapping implementation
-Upstream::HostSharedPtr RevConCluster::HostMapping::getHost(const std::string& node_id) const {
-  absl::ReaderMutexLock lock(&mutex_);
-  auto it = host_map_.find(node_id);
-  return (it != host_map_.end()) ? it->second : nullptr;
-}
-
-bool RevConCluster::HostMapping::hasHost(const std::string& node_id) const {
-  absl::ReaderMutexLock lock(&mutex_);
-  return host_map_.find(node_id) != host_map_.end();
-}
-
-size_t RevConCluster::HostMapping::size() const {
-  absl::ReaderMutexLock lock(&mutex_);
-  return host_map_.size();
-}
-
-bool RevConCluster::HostMapping::empty() const {
-  absl::ReaderMutexLock lock(&mutex_);
-  return host_map_.empty();
-}
-
-void RevConCluster::HostMapping::insertHost(const std::string& node_id, Upstream::HostSharedPtr host) {
-  absl::WriterMutexLock lock(&mutex_);
-
-  ENVOY_LOG(debug, "HostMapping insertHost: {}", node_id);
-  // Check if host already exists 
-  auto it = host_map_.find(node_id);
-  if (it != host_map_.end()) {
-    // Update existing host
-    it->second = host;
-    addLogEntry(OperationType::UPDATE, node_id, host);
-  } else {
-    // Insert new host
-    host_map_[node_id] = host;
-    addLogEntry(OperationType::INSERT, node_id, host);
-  }
-}
-
-void RevConCluster::HostMapping::updateHost(const std::string& node_id, Upstream::HostSharedPtr host) {
-  absl::WriterMutexLock lock(&mutex_);
-  
-  auto it = host_map_.find(node_id);
-  if (it != host_map_.end()) {
-    it->second = host;
-    addLogEntry(OperationType::UPDATE, node_id, host);
-  }
-}
-
-bool RevConCluster::HostMapping::removeHost(const std::string& node_id) {
-  absl::WriterMutexLock lock(&mutex_);
-  
-  auto it = host_map_.find(node_id);
-  if (it != host_map_.end()) {
-    host_map_.erase(it);
-    addLogEntry(OperationType::REMOVE, node_id);
-    return true;
-  }
-  return false;
-}
-
-std::vector<std::string> RevConCluster::HostMapping::getUnusedHosts() const {
-  absl::ReaderMutexLock lock(&mutex_);
-  std::vector<std::string> unused_hosts;
-  
-  for (const auto& [node_id, host] : host_map_) {
-    if (!host->used()) {
-      unused_hosts.push_back(node_id);
-    }
-  }
-  
-  return unused_hosts;
-}
-
-void RevConCluster::HostMapping::removeUnusedHosts() {
-  absl::WriterMutexLock lock(&mutex_);
-  
-  for (auto it = host_map_.begin(); it != host_map_.end();) {
-    if (!it->second->used()) {
-      addLogEntry(OperationType::REMOVE, it->first);
-      auto erase_it = it++;
-      host_map_.erase(erase_it);
-    } else {
-      ++it;
-    }
-  }
-}
-
-bool RevConCluster::HostMapping::hasLogEntries() const {
-  absl::ReaderMutexLock lock(&mutex_);
-  ENVOY_LOG(debug, "HostMapping hasLogEntries: {}", write_ahead_log_.size());
-  return !write_ahead_log_.empty();
-}
-
-absl::optional<RevConCluster::HostMapping::WriteAheadLogEntry> 
-RevConCluster::HostMapping::popLogEntry() {
-  absl::WriterMutexLock lock(&mutex_);
-  ENVOY_LOG(debug, "HostMapping popLogEntry: {}", write_ahead_log_.size());
-  
-  if (write_ahead_log_.empty()) {
-    return absl::nullopt;
-  }
-  
-  WriteAheadLogEntry entry = std::move(write_ahead_log_.front());
-  write_ahead_log_.pop();
-  return entry;
-}
-
-void RevConCluster::HostMapping::clearLog() {
-  absl::WriterMutexLock lock(&mutex_);
-  while (!write_ahead_log_.empty()) {
-    write_ahead_log_.pop();
-  }
-}
-
-size_t RevConCluster::HostMapping::getLogSize() const {
-  absl::ReaderMutexLock lock(&mutex_);
-  return write_ahead_log_.size();
-}
-
-void RevConCluster::HostMapping::addLogEntry(OperationType operation, const std::string& node_id,
-                                           Upstream::HostSharedPtr host) {
-  // This method should only be called with mutex_ already held
-  write_ahead_log_.emplace(operation, node_id, host);
 }
 
 /**

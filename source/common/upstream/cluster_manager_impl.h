@@ -40,8 +40,11 @@
 #include "source/common/upstream/host_utility.h"
 #include "source/common/upstream/load_stats_reporter.h"
 #include "source/common/upstream/priority_conn_pool_map.h"
-#include "source/extensions/clusters/reverse_connection/reverse_connection_reporter.h"
+
 #include "source/common/upstream/upstream_impl.h"
+#include "source/extensions/clusters/reverse_connection/reverse_connection_reporter.h"
+#include "source/extensions/clusters/reverse_connection/reverse_connection_tracker.h"
+#include "source/extensions/clusters/reverse_connection/connection_tracker_bridge.h"
 
 namespace Envoy {
 namespace Upstream {
@@ -923,8 +926,12 @@ private:
 
   bool deferralIsSupportedForCluster(const ClusterInfoConstSharedPtr& info) const;
 
-  // Find the first reverse connection cluster for RCRS reporter
-  Extensions::ReverseConnection::RevConCluster* findReverseConnectionCluster();
+  /**
+   * Connect the tracker bridge to all upstream socket managers for RCRS reporting.
+   */
+  void connectTrackerBridgeToSocketManagers();
+
+
 
   Server::Instance& server_;
   ClusterManagerFactory& factory_;
@@ -945,7 +952,11 @@ private:
   // Temporarily saved resume cds callback from updateClusterCounts invocation.
   Config::ScopedResume resume_cds_;
   LoadStatsReporterPtr load_stats_reporter_;
+  // Reverse connection reporting service
+  Extensions::ReverseConnection::ReverseConnectionTrackerManagerPtr reverse_connection_tracker_manager_;
   Extensions::ReverseConnection::ReverseConnectionReporterPtr reverse_connection_reporter_;
+  std::unique_ptr<Extensions::ReverseConnection::ConnectionTrackerBridge> connection_tracker_bridge_;
+
   // The name of the local cluster of this Envoy instance if defined.
   absl::optional<std::string> local_cluster_name_;
   Grpc::AsyncClientManagerPtr async_client_manager_;

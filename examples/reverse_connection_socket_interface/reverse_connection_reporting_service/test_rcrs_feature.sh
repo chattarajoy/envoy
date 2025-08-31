@@ -15,8 +15,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 RCRS Feature Test Setup${NC}"
-echo "=================================="
+echo -e "${BLUE}🚀 RCRS Feature Test Setup (New Tracker-Based Implementation)${NC}"
+echo "================================================================"
 echo
 
 # Function to check if a command exists
@@ -133,6 +133,8 @@ cat << EOF
    reverse_connection_reporter.retries
    reverse_connection_reporter.connections_added
    reverse_connection_reporter.connections_removed
+   reverse_connection_reporter.events_processed
+   reverse_connection_reporter.events_cleared
 EOF
 echo
 

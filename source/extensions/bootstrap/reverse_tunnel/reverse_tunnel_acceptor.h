@@ -21,6 +21,7 @@
 #include "source/common/common/random_generator.h"
 #include "source/common/network/io_socket_handle_impl.h"
 #include "source/common/network/socket_interface.h"
+#include "source/extensions/bootstrap/reverse_tunnel/connection_event_callback.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -335,6 +336,12 @@ public:
   UpstreamSocketManager(Event::Dispatcher& dispatcher,
                         ReverseTunnelAcceptorExtension* extension = nullptr);
 
+  /**
+   * Set the connection event callback for RCRS reporting.
+   * @param callback the callback to receive connection events, or nullptr to disable.
+   */
+  void setConnectionEventCallback(ConnectionEventCallback* callback);
+
   ~UpstreamSocketManager();
 
   // RPING message now handled by ReverseConnectionUtility
@@ -398,6 +405,8 @@ public:
    * @return pointer to the upstream extension or nullptr if not available.
    */
   ReverseTunnelAcceptorExtension* getUpstreamExtension() const { return extension_; }
+  
+
   /**
    * Automatically discern whether the key is a node ID or cluster ID.
    * @param key the key to get the node ID for.
@@ -432,6 +441,9 @@ private:
 
   // Upstream extension for stats integration.
   ReverseTunnelAcceptorExtension* extension_;
+  
+  // Connection event callback for RCRS reporting.
+  ConnectionEventCallback* connection_event_callback_{nullptr};
 };
 
 DECLARE_FACTORY(ReverseTunnelAcceptor);
