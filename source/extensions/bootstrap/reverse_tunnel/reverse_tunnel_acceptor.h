@@ -31,6 +31,7 @@ namespace ReverseConnection {
 class ReverseTunnelAcceptor;
 class ReverseTunnelAcceptorExtension;
 class UpstreamSocketManager;
+class ReverseConnectionsReporter;
 
 /**
  * Custom IoHandle for upstream reverse connections that manages ConnectionSocket lifetime.
@@ -299,6 +300,17 @@ public:
   Stats::Scope& getStatsScope() const { return context_.scope(); }
 
   /**
+   * Set the global reverse connections reporter pointer.
+   * The extension does not own the reporter; lifetime is managed by its bootstrap extension.
+   */
+  void setReporter(ReverseConnectionsReporter* reporter) { reporter_ = reporter; }
+
+  /**
+   * Get the reverse connections reporter pointer if set.
+   */
+  ReverseConnectionsReporter* getReporter() const { return reporter_; }
+
+  /**
    * Test-only method to set the thread local slot.
    * @param slot the thread local slot to set.
    */
@@ -313,6 +325,8 @@ private:
   std::unique_ptr<ThreadLocal::TypedSlot<UpstreamSocketThreadLocal>> tls_slot_;
   ReverseTunnelAcceptor* socket_interface_;
   std::string stat_prefix_;
+  // Non-owning pointer to the reporter, populated by reporter bootstrap extension.
+  ReverseConnectionsReporter* reporter_{nullptr};
 };
 
 /**
