@@ -16,6 +16,7 @@
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/bootstrap/reverse_tunnel/reverse_connection_utility.h"
 
+
 namespace Envoy {
 namespace Extensions {
 namespace Bootstrap {
@@ -257,6 +258,14 @@ absl::flat_hash_map<std::string, uint64_t> ReverseTunnelAcceptorExtension::getCr
   return stats_map;
 }
 
+void ReverseTunnelAcceptorExtension::notifyReverseConnectionEstablished(const std::string& node_id, const std::string& cluster_id) {
+  ENVOY_LOG(debug, "RCRS FIX: Notifying reverse connection clusters about new connection - node: {}, cluster: {}", node_id, cluster_id);
+  
+  // This method is deprecated with the new tracker-based RCRS implementation
+  // The new implementation handles connection events directly through the tracker
+  ENVOY_LOG(debug, "RCRS FIX: Using new tracker-based implementation - cluster notification not needed");
+}
+
 void ReverseTunnelAcceptorExtension::updateConnectionStats(const std::string& node_id,
                                                            const std::string& cluster_id,
                                                            bool increment) {
@@ -474,6 +483,16 @@ void UpstreamSocketManager::addConnectionSocket(const std::string& node_id,
     extension->updateConnectionStats(node_id, cluster_id, true /* increment */);
     ENVOY_LOG(debug, "UpstreamSocketManager: updated stats registry for node '{}' cluster '{}'",
               node_id, cluster_id);
+    
+    // RCRS FIX: Notify reverse connection clusters about new connection
+    extension->notifyReverseConnectionEstablished(node_id, cluster_id);
+  }
+
+  // Record connection establishment for RCRS reporting
+  if (connection_event_callback_) {
+    connection_event_callback_->onConnectionEstablished(node_id, cluster_id, fd, connectionKey);
+    ENVOY_LOG(debug, "UpstreamSocketManager: recorded connection establishment for node '{}' cluster '{}'",
+              node_id, cluster_id);
   }
 
   // onPingResponse() expects a ping reply on the socket.
@@ -582,6 +601,12 @@ std::string UpstreamSocketManager::getNodeID(const std::string& key) {
   return key;
 }
 
+void UpstreamSocketManager::setConnectionEventCallback(ConnectionEventCallback* callback) {
+  connection_event_callback_ = callback;
+  ENVOY_LOG(debug, "UpstreamSocketManager: connection event callback {}",
+            callback ? "enabled" : "disabled");
+}
+
 void UpstreamSocketManager::markSocketDead(const int fd) {
   ENVOY_LOG(trace, "UpstreamSocketManager: markSocketDead called for fd {}", fd);
 
@@ -615,6 +640,13 @@ void UpstreamSocketManager::markSocketDead(const int fd) {
                 node_id, cluster_id);
     }
 
+    // Record connection termination for RCRS reporting (used connection)
+    if (connection_event_callback_) {
+      connection_event_callback_->onConnectionTerminated(node_id, cluster_id, fd, "");
+      ENVOY_LOG(debug, "UpstreamSocketManager: recorded used connection termination for node '{}' cluster '{}'",
+                node_id, cluster_id);
+    }
+
     return;
   }
 
@@ -637,6 +669,13 @@ void UpstreamSocketManager::markSocketDead(const int fd) {
         extension->updateConnectionStats(node_id, cluster_id, false /* decrement */);
         ENVOY_LOG(debug,
                   "UpstreamSocketManager: decremented stats registry for node '{}' cluster '{}'",
+                  node_id, cluster_id);
+      }
+
+      // Record connection termination for RCRS reporting
+      if (connection_event_callback_) {
+        connection_event_callback_->onConnectionTerminated(node_id, cluster_id, fd, "");
+        ENVOY_LOG(debug, "UpstreamSocketManager: recorded connection termination for node '{}' cluster '{}'",
                   node_id, cluster_id);
       }
       break;

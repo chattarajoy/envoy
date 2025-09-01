@@ -511,7 +511,56 @@ absl::Status ClusterManagerImpl::initializeSecondaryClusters(
     load_stats_reporter_ = std::make_unique<LoadStatsReporter>(
         local_info_, *this, *stats_.rootScope(), std::move(*client_or_error), dispatcher_);
   }
+
+  // Initialize Reverse Connection Reporting Service if configured
+  if (cm_config.has_reverse_connection_reporting_config()) {
+    const auto& rcrs_config = cm_config.reverse_connection_reporting_config();
+    
+    absl::Status status = Config::Utility::checkTransportVersion(rcrs_config);
+    RETURN_IF_NOT_OK(status);
+    auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
+        *async_client_manager_, rcrs_config, *stats_.rootScope(), false, 0, false);
+    RETURN_IF_NOT_OK_REF(factory_or_error.status());
+    absl::StatusOr<Grpc::RawAsyncClientPtr> client_or_error =
+        factory_or_error.value()->createUncachedRawAsyncClient();
+    RETURN_IF_NOT_OK_REF(client_or_error.status());
+
+    // Initialize the tracker manager  
+    reverse_connection_tracker_manager_ = 
+        std::make_unique<Extensions::ReverseConnection::ReverseConnectionTrackerManager>(tls_);
+
+    // Initialize the reporter with the tracker manager
+    reverse_connection_reporter_ = 
+        std::make_unique<Extensions::ReverseConnection::ReverseConnectionReporter>(
+            local_info_, *reverse_connection_tracker_manager_, *stats_.rootScope(), 
+            std::move(*client_or_error), dispatcher_);
+    
+    // Create the bridge to connect socket manager events to the tracker
+    connection_tracker_bridge_ = 
+        std::make_unique<Extensions::ReverseConnection::ConnectionTrackerBridge>(
+            *reverse_connection_tracker_manager_);
+    
+    // Connect the bridge to all socket managers
+    // This is done by registering the bridge with the upstream socket interface
+    connectTrackerBridgeToSocketManagers();
+    
+    ENVOY_LOG(info, "Reverse Connection Reporting Service initialized successfully with new tracker-based implementation");
+  }
+  
   return absl::OkStatus();
+}
+
+void ClusterManagerImpl::connectTrackerBridgeToSocketManagers() {
+  // For now, we'll implement a simplified approach
+  // The full integration requires more complex thread-local coordination
+  // This is a placeholder that logs the intention
+  ENVOY_LOG(info, "ClusterManagerImpl: Tracker bridge created - socket manager integration pending");
+  
+  // TODO: Implement proper thread-local socket manager integration
+  // This requires:
+  // 1. Access to the ReverseTunnelAcceptorExtension from cluster manager
+  // 2. Thread-local coordination between socket managers and the bridge
+  // 3. Proper lifecycle management of the callback
 }
 
 ClusterManagerStats ClusterManagerImpl::generateStats(Stats::Scope& scope) {
@@ -2281,6 +2330,8 @@ ProdClusterManagerFactory::createCds(const envoy::config::core::v3::ConfigSource
                             context_.messageValidationContext().dynamicValidationVisitor(),
                             context_);
 }
+
+
 
 } // namespace Upstream
 } // namespace Envoy

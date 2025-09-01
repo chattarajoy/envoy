@@ -95,6 +95,7 @@ envoy_cc_extension(
     hdrs = [
         "factory_base.h",
         "reverse_tunnel_acceptor.h",
+        "connection_event_callback.h",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -113,6 +114,7 @@ envoy_cc_extension(
         "//source/common/network:address_lib",
         "//source/common/network:default_socket_interface_lib",
         "//source/common/protobuf",
+
         ":reverse_connection_utility_lib",
         "@envoy_api//envoy/extensions/bootstrap/reverse_connection_socket_interface/v3:pkg_cc_proto",
     ],
