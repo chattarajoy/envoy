@@ -22,6 +22,8 @@
 #include "source/common/network/io_socket_handle_impl.h"
 #include "source/common/network/socket_interface.h"
 
+#include "envoy/service/reverse_tunnel/v3/rcrs.pb.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace Bootstrap {
@@ -31,6 +33,7 @@ namespace ReverseConnection {
 class ReverseTunnelAcceptor;
 class ReverseTunnelAcceptorExtension;
 class UpstreamSocketManager;
+class ReverseConnectionsReporter;
 
 /**
  * Custom IoHandle for upstream reverse connections that manages ConnectionSocket lifetime.
@@ -299,6 +302,17 @@ public:
   Stats::Scope& getStatsScope() const { return context_.scope(); }
 
   /**
+   * Set the global reverse connections reporter pointer.
+   * The extension does not own the reporter; lifetime is managed by its bootstrap extension.
+   */
+  void setReporter(ReverseConnectionsReporter* reporter) { reporter_ = reporter; }
+
+  /**
+   * Get the reverse connections reporter pointer if set.
+   */
+  ReverseConnectionsReporter* getReporter() const { return reporter_; }
+
+  /**
    * Test-only method to set the thread local slot.
    * @param slot the thread local slot to set.
    */
@@ -313,6 +327,8 @@ private:
   std::unique_ptr<ThreadLocal::TypedSlot<UpstreamSocketThreadLocal>> tls_slot_;
   ReverseTunnelAcceptor* socket_interface_;
   std::string stat_prefix_;
+  // Non-owning pointer to the reporter, populated by reporter bootstrap extension.
+  ReverseConnectionsReporter* reporter_{nullptr};
 };
 
 /**
@@ -398,6 +414,17 @@ public:
   std::string getNodeID(const std::string& key);
 
 private:
+  /**
+   * Notify the reporter of a connection event (if reporter is available).
+   * Posts to main thread if called from worker thread.
+   */
+  void notifyReporter(const std::string& node_id, const std::string& cluster_id, bool added);
+
+  /**
+   * Create ReverseConnectionInfo message for reporting.
+   */
+  envoy::service::reverse_tunnel::v3::ReverseConnectionInfo
+  createConnectionInfo(const std::string& node_id, const std::string& cluster_id);
   // Thread local dispatcher instance.
   Event::Dispatcher& dispatcher_;
   Random::RandomGeneratorPtr random_generator_;

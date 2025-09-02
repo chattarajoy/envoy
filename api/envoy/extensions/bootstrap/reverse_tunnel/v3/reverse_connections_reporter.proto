@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package envoy.extensions.bootstrap.reverse_tunnel.v3;
+
+import "envoy/config/core/v3/grpc_service.proto";
+import "google/protobuf/duration.proto";
+import "udpa/annotations/status.proto";
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.bootstrap.reverse_tunnel.v3";
+option java_outer_classname = "ReverseConnectionsReporterConfigProto";
+option java_multiple_files = true;
+option go_package = "github.com/envoyproxy/go-control-plane/envoy/extensions/bootstrap/reverse_tunnel/v3;reverse_tunnelv3";
+option (udpa.annotations.file_status).package_version_status = ACTIVE;
+
+// [#protodoc-title: Reverse Connections Reporter Bootstrap Config]
+
+// Bootstrap config for the ReverseConnectionsReporter.
+message ReverseConnectionsReporterConfig {
+  // Target management server for RCRS stream.
+  envoy.config.core.v3.GrpcService grpc_service = 1 [(validate.rules).message = {required: true}];
+
+  // Initial reporting interval before server updates it via stream responses. Default 30s.
+  google.protobuf.Duration initial_report_interval = 2;
+}
+
+
