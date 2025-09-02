@@ -61,11 +61,11 @@ void ReverseConnectionsReporter::flush() {
 
   if (pending_added_.empty() && pending_removed_.empty()) {
     // Send heartbeat request with node and nonce to learn/refresh interval if needed
-    request_.Clear();
-    request_.mutable_node()->MergeFrom(local_info_.node());
-    request_.set_nonce(nextNonce());
-    auto buffer = Grpc::Common::serializeToGrpcFrame(request_);
-    stream_->sendMessageRaw(std::move(buffer), false);
+      request_.Clear();
+  request_.mutable_node()->MergeFrom(local_info_.node());
+  request_.set_nonce(nextNonce());
+  auto buffer = Grpc::Common::serializeMessage(request_);
+  stream_->sendMessageRaw(std::move(buffer), false);
     return;
   }
 
@@ -79,7 +79,7 @@ void ReverseConnectionsReporter::flush() {
   }
   request_.set_nonce(nextNonce());
 
-  auto buffer = Grpc::Common::serializeToGrpcFrame(request_);
+  auto buffer = Grpc::Common::serializeMessage(request_);
   stream_->sendMessageRaw(std::move(buffer), false);
   pending_added_.clear();
   pending_removed_.clear();
